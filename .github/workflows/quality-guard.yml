@@ -29,6 +29,7 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
+      - run: npm run build --workspace=shared
       - run: npm run typecheck
 
   test:
