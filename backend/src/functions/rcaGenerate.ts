@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { generateRCAStream } from '../agents/rcaGenerator.js';
+import { parseMailThread } from '../agents/mailParser.js';
 
 function getSamplesDir(): string {
   return join(__dirname, '..', '..', 'samples');
@@ -13,7 +14,7 @@ app.http('generateRCA', {
   route: 'rca/generate',
   handler: async (request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> => {
     try {
-      const body = (await request.json()) as { ticketId?: string };
+      const body = (await request.json()) as { ticketId?: string; messages?: unknown[] };
       const ticketId = body.ticketId;
 
       if (!ticketId) {
@@ -23,19 +24,32 @@ app.http('generateRCA', {
         };
       }
 
-      // Load ticket data
+      // Load ticket data (sample or passed-in messages)
       let ticketData;
-      try {
-        const filePath = join(getSamplesDir(), `${ticketId}.json`);
-        ticketData = JSON.parse(readFileSync(filePath, 'utf-8'));
-      } catch {
-        return {
-          status: 404,
-          jsonBody: { success: false, error: `Ticket ${ticketId} not found` },
-        };
+      if (body.messages) {
+        // Direct messages from Graph API
+        ticketData = { ticketId, subject: '', vendor: '', messages: body.messages };
+      } else {
+        try {
+          const filePath = join(getSamplesDir(), `${ticketId}.json`);
+          ticketData = JSON.parse(readFileSync(filePath, 'utf-8'));
+        } catch {
+          return {
+            status: 404,
+            jsonBody: { success: false, error: `Ticket ${ticketId} not found` },
+          };
+        }
       }
 
-      // Stream RCA generation via SSE
+      // Parse and clean mail thread through MailParserAgent
+      const parsedThread = parseMailThread(
+        ticketData.ticketId || ticketId,
+        ticketData.subject || '',
+        ticketData.vendor || '',
+        ticketData.messages || [],
+      );
+
+      // Stream RCA generation via SSE using cleaned messages
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         async start(controller): Promise<void> {
@@ -43,7 +57,10 @@ app.http('generateRCA', {
             controller.enqueue(encoder.encode('data: {"type":"start"}\n\n'));
 
             let fullContent = '';
-            for await (const chunk of generateRCAStream(ticketData)) {
+            for await (const chunk of generateRCAStream({
+              ...ticketData,
+              messages: parsedThread.messages,
+            })) {
               fullContent += chunk;
               const event = JSON.stringify({ type: 'chunk', content: chunk });
               controller.enqueue(encoder.encode(`data: ${event}\n\n`));
@@ -55,7 +72,6 @@ app.http('generateRCA', {
               const doneEvent = JSON.stringify({ type: 'done', rca });
               controller.enqueue(encoder.encode(`data: ${doneEvent}\n\n`));
             } catch {
-              // If JSON parse fails, send raw content
               const doneEvent = JSON.stringify({ type: 'done', rawContent: fullContent });
               controller.enqueue(encoder.encode(`data: ${doneEvent}\n\n`));
             }
