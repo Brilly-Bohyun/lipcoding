@@ -2,7 +2,7 @@
   "name": "@rca-copilot/backend",
   "version": "0.1.0",
   "private": true,
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "func start",
     "build": "tsc",

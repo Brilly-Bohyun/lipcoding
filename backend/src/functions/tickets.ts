@@ -1,7 +1,11 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { createGraphClient, searchSupportTickets, fetchMailThread } from '../services/graphService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 interface TicketSummary {
   id: string;
