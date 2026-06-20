@@ -34,12 +34,28 @@ export function getPromptConfig(): PromptConfig {
     const base = azEndpoint.replace(/\/$/, '');
     const url = `${base}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`;
 
-    // SDK는 Authorization: Bearer 를 보내므로, Azure OpenAI 인증(api-key)으로 교체
+    // SDK는 Authorization: Bearer 와 toolsChoice(비표준) 를 보내므로,
+    // Azure OpenAI 규격에 맞게 인증(api-key) 및 페이로드(tool_choice)를 교정한다.
     const azureFetch: typeof fetch = (input, init) => {
       const headers = new Headers(init?.headers);
       headers.delete('authorization');
       headers.set('api-key', azKey);
-      return fetch(input, { ...init, headers });
+
+      let body = init?.body;
+      if (typeof body === 'string') {
+        try {
+          const payload = JSON.parse(body);
+          if ('toolsChoice' in payload) {
+            payload.tool_choice = payload.toolsChoice;
+            delete payload.toolsChoice;
+          }
+          body = JSON.stringify(payload);
+        } catch {
+          // 원본 유지
+        }
+      }
+
+      return fetch(input, { ...init, headers, body });
     };
 
     return { endpoint: url, token: azKey, model: deployment, fetch: azureFetch, provider: 'azure-openai' };
