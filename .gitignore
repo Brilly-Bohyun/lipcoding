@@ -1,27 +1,24 @@
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-.output/
-*.tsbuildinfo
 
 # Azure Functions
-local.settings.json
-
+# Build output
+# Dependencies
+# Environment variables
 # IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
 # Logs
+# OS
 *.log
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*.local
+.env.local
+.idea/
+.output/
+.vscode/
+Thumbs.db
+backend/.deploy/
+backend/backend-deploy.zip
+dist/
 frontend/frontend-deploy.zip
+local.settings.json
+node_modules/
