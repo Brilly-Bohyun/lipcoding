@@ -17,7 +17,23 @@
        │
        ├─── (2) RCAGeneratorAgent    → 한국어 RCA 6섹션 생성
        │
-       └─── (3) ReviewAssistantAgent → 검토 보조 (재생성, 질의응답)
+       ├─── (3) ReviewAssistantAgent → 검토 보조 (재생성, 질의응답)
+       │
+       └─── (4) ExportAgent          → Word 생성 & Slack 공유
+```
+
+```
+CI/CD Pipeline (GitHub Actions)
+       │
+       ▼
+┌──────────────────┐
+│ QualityGuardAgent│  ← PR/Push 시 자동 실행
+└──────┬───────────┘
+       │
+       ├─── lint check (ESLint + Prettier)
+       ├─── unit/integration test
+       ├─── secret scan (hardcoded key 탐지)
+       └─── build verification
 ```
 
 ---
@@ -143,6 +159,149 @@ interface TimelineEntry {
 
 ---
 
+### 4. ExportAgent
+
+**역할:** 완성된 RCA를 Word 문서로 변환하거나 Slack 채널에 공유
+
+**입력:** `RCADocument` + 내보내기 옵션 (형식, 대상 채널)
+
+**출력:**
+```typescript
+interface ExportResult {
+  type: 'word' | 'slack';
+  success: boolean;
+  // Word: 다운로드 URL 또는 Buffer
+  fileUrl?: string;
+  // Slack: 메시지 timestamp (전송 확인용)
+  slackMessageTs?: string;
+  error?: string;
+}
+```
+
+**도구 (Tools):**
+- `generateWordDocument(rca, template)` — docx 패키지로 RCA를 Word 파일로 변환
+- `sendSlackMessage(channel, blocks)` — Slack Incoming Webhook으로 Block Kit 메시지 전송
+- `formatSlackBlocks(rca)` — RCA를 Slack Block Kit 형식으로 포맷팅
+
+**시스템 프롬프트 핵심:**
+```
+당신은 문서 변환 및 공유 전문가입니다.
+
+Word 내보내기:
+- RCA 6개 섹션을 표준 보고서 템플릿에 매핑하세요.
+- 타임라인은 표(table) 형식으로 렌더링하세요.
+- 한글 폰트(맑은 고딕)를 기본으로 사용하세요.
+
+Slack 공유:
+- 요약(summary)과 근본 원인(rootCause)을 핵심 정보로 포함하세요.
+- 전체 내용을 보내지 말고, "상세 보기" 링크를 포함하세요.
+- Block Kit 형식으로 가독성 좋게 구성하세요.
+```
+
+**Human-in-the-loop:**
+- Word 내보내기: 사용자가 "Export" 버튼을 명시적으로 클릭해야 실행
+- Slack 공유: 전송 전 미리보기 표시 → 사용자 확인 후 전송
+
+---
+
+### 5. QualityGuardAgent
+
+**역할:** CI/CD 파이프라인에서 코드 품질, 보안, 테스트를 자동 검증
+
+**실행 환경:** GitHub Actions (PR 생성/Push 시 자동 트리거)
+
+**검증 항목:**
+
+| 검증 | 도구 | 실패 시 동작 |
+|------|------|-------------|
+| Lint 검사 | ESLint + Prettier | PR 블록, 에러 위치 코멘트 |
+| 타입 체크 | `tsc --noEmit` | PR 블록 |
+| 단위 테스트 | Vitest (frontend), Jest (backend) | PR 블록, 실패 테스트 리포트 |
+| 통합 테스트 | API endpoint 호출 테스트 | PR 블록 |
+| Secret 스캔 | `gitleaks` + custom regex | PR 블록, 보안 경고 |
+| 빌드 검증 | `npm run build` (frontend + backend) | PR 블록 |
+| 의존성 취약점 | `npm audit` | 경고 (critical은 블록) |
+
+**Secret 스캔 규칙:**
+```yaml
+# .gitleaks.toml에 정의
+rules:
+  - description: "Azure API Key"
+    regex: '[a-f0-9]{32}'
+    path: '(?i)(\.ts|\.js|\.json)$'
+    allowlist:
+      - '.env.example'  # 예시 파일은 허용
+
+  - description: "Slack Webhook URL"
+    regex: 'https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[a-zA-Z0-9]+'
+
+  - description: "Hardcoded secret pattern"
+    regex: '(?i)(api[_-]?key|secret|password|token)\s*[:=]\s*["\x27][^"\x27]{8,}'
+    allowlist:
+      - '.env.example'
+      - '*.test.ts'
+```
+
+**GitHub Actions 워크플로우 구조:**
+```yaml
+# .github/workflows/quality-guard.yml
+name: Quality Guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run test -- --coverage
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run build
+```
+
+**완료 기준:**
+- PR 생성 시 모든 검증이 자동 실행됨
+- 하나라도 실패하면 merge 불가 (branch protection rule)
+- Secret이 감지되면 PR에 경고 코멘트 자동 생성
+- 테스트 커버리지 리포트가 PR에 표시됨
+
+---
+
 ## Orchestrator 흐름
 
 ```typescript
@@ -160,6 +319,12 @@ async function generateRCA(ticketId: string): AsyncGenerator<RCAStreamEvent> {
 
   // Step 3: ReviewAssistant는 사용자 요청 시에만 호출
 }
+
+async function exportRCA(rca: RCADocument, target: 'word' | 'slack'): Promise<ExportResult> {
+  // Step 4: Export (사용자 명시적 요청 시)
+  const exportAgent = new ExportAgent();
+  return await exportAgent.run({ rca, target });
+}
 ```
 
 ---
@@ -176,13 +341,32 @@ async function generateRCA(ticketId: string): AsyncGenerator<RCAStreamEvent> {
 [RCAGeneratorAgent]
      │
      ▼ RCADocument (스트리밍)
-[Frontend UI]
+[Frontend UI — 검토/수정]
      │
-     ▼ 사용자 수정 요청 (선택)
-[ReviewAssistantAgent]
+     ├─▶ 사용자 수정 요청 (선택)
+     │   └─▶ [ReviewAssistantAgent] → 수정된 섹션 → UI 업데이트
      │
-     ▼ 수정된 섹션
-[Frontend UI 업데이트]
+     ├─▶ "Word 내보내기" 클릭
+     │   └─▶ [ExportAgent] → .docx 파일 → 다운로드
+     │
+     └─▶ "Slack 공유" 클릭
+         └─▶ [ExportAgent] → Slack 메시지 → 채널 전송
+```
+
+```
+[GitHub PR/Push]
+     │
+     ▼ GitHub Actions trigger
+[QualityGuardAgent]
+     │
+     ├─▶ lint → pass/fail
+     ├─▶ typecheck → pass/fail
+     ├─▶ test → pass/fail + coverage
+     ├─▶ secret-scan → pass/alert
+     └─▶ build → pass/fail
+         │
+         ▼
+[PR Status Check] → merge 허용/차단
 ```
 
 ---
