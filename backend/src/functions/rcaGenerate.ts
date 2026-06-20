@@ -71,8 +71,14 @@ app.http('generateRCA', {
             }
 
             // Send complete event with full parsed RCA
+            // AI 응답이 ```json ... ``` 코드펜스로 감싸지는 경우가 있어 제거 후 파싱
+            const cleaned = fullContent
+              .trim()
+              .replace(/^```(?:json)?\s*/i, '')
+              .replace(/\s*```$/i, '')
+              .trim();
             try {
-              const rca = JSON.parse(fullContent);
+              const rca = JSON.parse(cleaned);
               const doneEvent = JSON.stringify({ type: 'done', rca });
               controller.enqueue(encoder.encode(`data: ${doneEvent}\n\n`));
             } catch {
