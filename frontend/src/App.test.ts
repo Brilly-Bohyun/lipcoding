@@ -20,7 +20,7 @@ describe('Frontend Tests', () => {
       try {
         const shared = await import('@rca-copilot/shared');
         expect(shared).toBeDefined();
-      } catch (error) {
+      } catch {
         // Shared types are available
         expect(true).toBe(true);
       }

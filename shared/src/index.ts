@@ -25,6 +25,10 @@ export interface Ticket {
   messageCount: number;
 }
 
+export interface TicketDetail extends Ticket {
+  messages: MailMessage[];
+}
+
 export interface MailMessage {
   index: number;
   from: string;

@@ -39,10 +39,10 @@ describe('Ticket Service Tests', () => {
         expect(() => JSON.parse(content)).not.toThrow();
         
         const data = JSON.parse(content);
-        expect(data).toHaveProperty('id');
+        expect(data).toHaveProperty('ticketId');
         expect(data).toHaveProperty('subject');
-        expect(data).toHaveProperty('mailThread');
-        expect(Array.isArray(data.mailThread)).toBe(true);
+        expect(data).toHaveProperty('messages');
+        expect(Array.isArray(data.messages)).toBe(true);
       });
     });
 
@@ -56,14 +56,14 @@ describe('Ticket Service Tests', () => {
       const content = fs.readFileSync(sampleFile, 'utf-8');
       const ticket = JSON.parse(content);
 
-      expect(ticket.mailThread.length).toBeGreaterThan(2); // At least initial report + vendor response + resolution
+      expect(ticket.messages.length).toBeGreaterThan(2); // At least initial report + vendor response + resolution
       
-      ticket.mailThread.forEach((mail: any) => {
+      ticket.messages.forEach((mail: any) => {
         expect(mail).toHaveProperty('from');
         expect(mail).toHaveProperty('to');
         expect(mail).toHaveProperty('date');
         expect(mail).toHaveProperty('subject');
-        expect(mail).toHaveProperty('body');
+        expect(mail).toHaveProperty('bodyText');
       });
     });
   });
@@ -77,7 +77,7 @@ describe('Ticket Service Tests', () => {
         const content = fs.readFileSync(ticketPath, 'utf-8');
         const ticket = JSON.parse(content);
         
-        expect(ticket.id).toBe(ticketId);
+        expect(ticket.ticketId).toBe(ticketId);
       } else {
         console.warn('ticket-001.json not found, test passes conditionally');
         expect(true).toBe(true);
@@ -103,13 +103,13 @@ describe('Ticket Service Tests', () => {
       const content = fs.readFileSync(sampleFile, 'utf-8');
       const ticket = JSON.parse(content);
 
-      if (!ticket.mailThread) {
-        console.warn('mailThread not found in ticket, skipping');
+      if (!ticket.messages) {
+        console.warn('messages not found in ticket, skipping');
         return;
       }
 
       const participants = new Set<string>();
-      ticket.mailThread.forEach((mail: any) => {
+      ticket.messages.forEach((mail: any) => {
         participants.add(mail.from);
         if (Array.isArray(mail.to)) {
           mail.to.forEach((recipient: string) => participants.add(recipient));
