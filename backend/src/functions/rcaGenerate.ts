@@ -1,8 +1,12 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { generateRCAStream } from '../agents/rcaGenerator.js';
 import { parseMailThread } from '../agents/mailParser.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function getSamplesDir(): string {
   return join(__dirname, '..', '..', 'samples');

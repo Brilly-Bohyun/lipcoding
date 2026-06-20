@@ -1,4 +1,4 @@
-import { AzureOpenAI } from 'openai';
+import OpenAI, { AzureOpenAI } from 'openai';
 import { RCA_GENERATOR_SYSTEM_PROMPT } from '../prompts/rcaGenerator.js';
 
 interface MailMessage {
@@ -26,31 +26,46 @@ function buildUserPrompt(ticket: TicketData): string {
   return `## 티켓 정보\n- 제목: ${ticket.subject}\n- 티켓 ID: ${ticket.ticketId}\n- 메일 수: ${ticket.messages.length}통\n\n## 메일 스레드\n${mailSummary}\n\n위 메일 스레드를 분석하여 RCA 보고서를 JSON 형식으로 작성하세요.`;
 }
 
-function getClient(): AzureOpenAI {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview';
+type AIClient = OpenAI | AzureOpenAI;
 
-  if (!endpoint || !apiKey) {
-    throw new Error('AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY must be set');
+function getClient(): { client: AIClient; model: string } {
+  // Option 1: Azure OpenAI (production)
+  const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const azureKey = process.env.AZURE_OPENAI_API_KEY;
+
+  if (azureEndpoint && azureKey) {
+    const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview';
+    return {
+      client: new AzureOpenAI({ endpoint: azureEndpoint, apiKey: azureKey, apiVersion }),
+      model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+    };
   }
 
-  return new AzureOpenAI({
-    endpoint,
-    apiKey,
-    apiVersion,
-  });
+  // Option 2: GitHub Models (development/fallback)
+  const githubToken = process.env.GITHUB_MODELS_TOKEN;
+  if (githubToken) {
+    return {
+      client: new OpenAI({
+        baseURL: 'https://models.inference.ai.azure.com',
+        apiKey: githubToken,
+      }),
+      model: process.env.GITHUB_MODELS_MODEL || 'gpt-4o',
+    };
+  }
+
+  throw new Error(
+    'No AI provider configured. Set AZURE_OPENAI_ENDPOINT+AZURE_OPENAI_API_KEY or GITHUB_MODELS_TOKEN',
+  );
 }
 
 export async function* generateRCAStream(
   ticket: TicketData,
 ): AsyncGenerator<string, void, unknown> {
-  const client = getClient();
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
+  const { client, model } = getClient();
   const userPrompt = buildUserPrompt(ticket);
 
   const stream = await client.chat.completions.create({
-    model: deployment,
+    model,
     messages: [
       { role: 'system', content: RCA_GENERATOR_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
