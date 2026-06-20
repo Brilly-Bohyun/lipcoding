@@ -12,13 +12,15 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.14.0",
+    "@azure/msal-react": "^5.4.5",
     "@fluentui/react-components": "^9.56.0",
     "@fluentui/react-icons": "^2.0.275",
+    "@rca-copilot/shared": "*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^7.1.0",
-    "zustand": "^5.0.0",
-    "@rca-copilot/shared": "*"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
