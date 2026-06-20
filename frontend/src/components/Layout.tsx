@@ -4,7 +4,6 @@ import {
   makeStyles,
   tokens,
   Text,
-  Divider,
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbDivider,
@@ -162,7 +161,6 @@ export function Layout({ children }: LayoutProps): JSX.Element {
         </Breadcrumb>
       </nav>
 
-      <Divider />
       <main className={styles.content} role="main">
         {children}
       </main>

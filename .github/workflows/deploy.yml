@@ -63,7 +63,15 @@ jobs:
         with:
           resourceGroupName: ${{ env.RESOURCE_GROUP }}
           template: ./infra/main.bicep
-          parameters: ./infra/parameters.json
+          parameters: >
+            environment=prod
+            baseName=rca-copilot
+            azureOpenAIEndpoint=${{ secrets.AZURE_OPENAI_ENDPOINT }}
+            azureOpenAIKey=${{ secrets.AZURE_OPENAI_KEY }}
+            slackWebhookUrl=${{ secrets.SLACK_WEBHOOK_URL }}
+            githubModelsToken=${{ secrets.GH_MODELS_TOKEN }}
+            entraClientId=${{ vars.VITE_ENTRA_CLIENT_ID }}
+            entraTenantId=${{ vars.VITE_ENTRA_TENANT_ID }}
           failOnStdErr: false
 
   # Build backend
@@ -124,12 +132,12 @@ jobs:
           name: frontend-build
           path: frontend/dist/
 
-  # Deploy backend to Azure Functions (manual trigger only until infra is provisioned)
+  # Deploy backend to Azure Functions
   deploy-backend:
     name: Deploy Backend
     runs-on: ubuntu-latest
-    needs: [build-backend]
-    if: github.event_name == 'workflow_dispatch'
+    needs: [build-backend, deploy-infra]
+    if: github.event_name == 'workflow_dispatch' && always() && needs.build-backend.result == 'success'
     environment: production
     steps:
       - uses: actions/download-artifact@v4
@@ -146,12 +154,12 @@ jobs:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: ./deploy
 
-  # Deploy frontend to Azure App Service (manual trigger only until infra is provisioned)
+  # Deploy frontend to Azure App Service
   deploy-frontend:
     name: Deploy Frontend
     runs-on: ubuntu-latest
-    needs: [build-frontend]
-    if: github.event_name == 'workflow_dispatch'
+    needs: [build-frontend, deploy-infra]
+    if: github.event_name == 'workflow_dispatch' && always() && needs.build-frontend.result == 'success'
     environment: production
     steps:
       - uses: actions/download-artifact@v4
