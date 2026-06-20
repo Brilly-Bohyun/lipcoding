@@ -9,11 +9,11 @@ param baseName string = 'rca-copilot'
 
 @description('Azure OpenAI endpoint URL')
 @secure()
-param azureOpenAIEndpoint string
+param azureOpenAIEndpoint string = ''
 
 @description('Azure OpenAI API key')
 @secure()
-param azureOpenAIKey string
+param azureOpenAIKey string = ''
 
 @description('Azure OpenAI deployment name')
 param azureOpenAIDeployment string = 'gpt-4o'
@@ -27,6 +27,10 @@ param entraClientId string = ''
 
 @description('Entra ID Tenant ID')
 param entraTenantId string = ''
+
+@description('GitHub Models Token (alternative to Azure OpenAI)')
+@secure()
+param githubModelsToken string = ''
 
 // ============================================================
 // Variables
@@ -98,6 +102,12 @@ resource secretSlackWebhook 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   properties: { value: slackWebhookUrl }
 }
 
+resource secretGithubModelsToken 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'github-models-token'
+  properties: { value: githubModelsToken }
+}
+
 // ============================================================
 // Storage Account (for Azure Functions)
 // ============================================================
@@ -151,6 +161,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'AZURE_OPENAI_API_KEY', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=azure-openai-key)' }
         { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAIDeployment }
         { name: 'SLACK_WEBHOOK_URL', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=slack-webhook-url)' }
+        { name: 'GITHUB_MODELS_TOKEN', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=github-models-token)' }
         { name: 'FRONTEND_URL', value: 'https://${frontendAppName}.azurewebsites.net' }
       ]
       cors: {

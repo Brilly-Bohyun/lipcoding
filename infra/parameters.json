@@ -8,6 +8,7 @@
     "azureOpenAIKey": { "value": "" },
     "azureOpenAIDeployment": { "value": "gpt-4o" },
     "slackWebhookUrl": { "value": "" },
+    "githubModelsToken": { "value": "" },
     "entraClientId": { "value": "" },
     "entraTenantId": { "value": "" }
   }
