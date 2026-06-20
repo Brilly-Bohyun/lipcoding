@@ -1,6 +1,12 @@
 import { app } from '@azure/functions';
+import { initTelemetry } from './services/telemetry.js';
 import './functions/tickets.js';
 import './functions/rcaGenerate.js';
+import './functions/exportWord.js';
+import './functions/shareSlack.js';
+
+// Initialize Application Insights
+initTelemetry();
 
 app.http('health', {
   methods: ['GET'],
