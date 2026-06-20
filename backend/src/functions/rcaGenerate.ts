@@ -38,7 +38,7 @@ app.http('generateRCA', {
       // Stream RCA generation via SSE
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
-        async start(controller) {
+        async start(controller): Promise<void> {
           try {
             controller.enqueue(encoder.encode('data: {"type":"start"}\n\n'));
 
