@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { createGraphClient, searchSupportTickets, fetchMailThread } from '../services/graphService.js';
 
 interface TicketSummary {
   id: string;
@@ -10,6 +11,12 @@ interface TicketSummary {
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+}
+
+function extractBearerToken(request: HttpRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  return authHeader.slice(7);
 }
 
 function getSamplesDir(): string {
@@ -48,11 +55,30 @@ app.http('getTickets', {
   methods: ['GET'],
   authLevel: 'anonymous',
   route: 'tickets',
-  handler: async (_request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> => {
+  handler: async (request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> => {
+    const token = extractBearerToken(request);
+
+    if (token) {
+      try {
+        const client = createGraphClient(token);
+        const tickets = await searchSupportTickets(client);
+        return {
+          status: 200,
+          jsonBody: { success: true, data: tickets, source: 'graph' },
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Graph API error';
+        return {
+          status: 200,
+          jsonBody: { success: true, data: loadAllTickets(), source: 'sample', warning: message },
+        };
+      }
+    }
+
     const tickets = loadAllTickets();
     return {
       status: 200,
-      jsonBody: { success: true, data: tickets },
+      jsonBody: { success: true, data: tickets, source: 'sample' },
     };
   },
 });
@@ -70,6 +96,35 @@ app.http('getTicketById', {
       };
     }
 
+    const token = extractBearerToken(request);
+
+    // If authenticated and ticketId looks like a conversationId (not a sample ID)
+    if (token && !ticketId.startsWith('ticket-')) {
+      try {
+        const client = createGraphClient(token);
+        const messages = await fetchMailThread(client, ticketId);
+        return {
+          status: 200,
+          jsonBody: {
+            success: true,
+            data: {
+              ticketId,
+              subject: messages[0]?.subject || 'Unknown',
+              messages,
+              source: 'graph',
+            },
+          },
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Graph API error';
+        return {
+          status: 500,
+          jsonBody: { success: false, error: `Failed to fetch mail thread: ${message}` },
+        };
+      }
+    }
+
+    // Fallback to sample data
     const ticket = loadTicket(ticketId);
     if (!ticket) {
       return {
@@ -80,7 +135,7 @@ app.http('getTicketById', {
 
     return {
       status: 200,
-      jsonBody: { success: true, data: ticket },
+      jsonBody: { success: true, data: { ...ticket, source: 'sample' } },
     };
   },
 });
