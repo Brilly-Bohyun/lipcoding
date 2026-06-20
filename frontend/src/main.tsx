@@ -5,7 +5,11 @@ import { BrowserRouter } from 'react-router-dom';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { MsalProvider } from '@azure/msal-react';
 import { msalConfig, isMsalConfigured } from './services/authConfig.js';
+import { initFrontendTelemetry } from './services/telemetry.js';
 import { App } from './App.js';
+
+// Initialize Application Insights
+initFrontendTelemetry();
 
 const msalInstance = isMsalConfigured() ? new PublicClientApplication(msalConfig) : null;
 
