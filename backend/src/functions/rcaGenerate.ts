@@ -4,6 +4,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { generateRCAStream } from '../agents/rcaGenerator.js';
 import { parseMailThread } from '../agents/mailParser.js';
+import { saveTicket, saveRCA } from '../services/storageService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -53,6 +54,17 @@ app.http('generateRCA', {
         ticketData.messages || [],
       );
 
+      // 이메일(메일 스레드) 내용을 스토리지에 영구 저장 (실패해도 생성은 계속)
+      saveTicket({
+        ticketId: ticketData.ticketId || ticketId,
+        subject: ticketData.subject || '',
+        vendor: ticketData.vendor || '',
+        status: ticketData.status,
+        messages: parsedThread.messages,
+        participants: parsedThread.participants,
+        metadata: parsedThread.metadata,
+      }).catch(() => undefined);
+
       // Stream RCA generation via SSE using cleaned messages
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
@@ -71,9 +83,22 @@ app.http('generateRCA', {
             }
 
             // Send complete event with full parsed RCA
+            // AI 응답이 ```json ... ``` 코드펜스로 감싸지는 경우가 있어 제거 후 파싱
+            const cleaned = fullContent
+              .trim()
+              .replace(/^```(?:json)?\s*/i, '')
+              .replace(/\s*```$/i, '')
+              .trim();
             try {
-              const rca = JSON.parse(fullContent);
-              const doneEvent = JSON.stringify({ type: 'done', rca });
+              const rca = JSON.parse(cleaned);
+              // RCA를 스토리지에 저장 (Table 최신본 + Blob 버전 스냅샷)
+              const stored = await saveRCA(ticketId, rca).catch(() => null);
+              const doneEvent = JSON.stringify({
+                type: 'done',
+                rca,
+                version: stored?.version,
+                persisted: stored !== null,
+              });
               controller.enqueue(encoder.encode(`data: ${doneEvent}\n\n`));
             } catch {
               const doneEvent = JSON.stringify({ type: 'done', rawContent: fullContent });
