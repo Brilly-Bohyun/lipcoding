@@ -188,10 +188,13 @@ resource frontendApp 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'NODE|20'
+      appCommandLine: 'pm2 serve /home/site/wwwroot --no-daemon --spa'
       appSettings: [
         { name: 'VITE_ENTRA_CLIENT_ID', value: entraClientId }
         { name: 'VITE_ENTRA_TENANT_ID', value: entraTenantId }
         { name: 'VITE_API_BASE_URL', value: 'https://${functionAppName}.azurewebsites.net/api' }
+        { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }
+        { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '0' }
       ]
     }
   }
