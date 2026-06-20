@@ -3,8 +3,12 @@ import { Layout } from './components/Layout.js';
 import { TicketListPage } from './pages/TicketListPage.js';
 import { TicketDetailPage } from './pages/TicketDetailPage.js';
 import { RCAViewPage } from './pages/RCAViewPage.js';
+import { useGraphToken } from './hooks/useGraphToken.js';
 
 export function App(): JSX.Element {
+  // Acquires token and sets it for API calls when authenticated
+  useGraphToken();
+
   return (
     <Layout>
       <Routes>

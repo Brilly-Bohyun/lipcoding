@@ -1,5 +1,19 @@
 const API_BASE = '/api';
 
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+  return headers;
+}
+
 export interface TicketSummary {
   id: string;
   subject: string;
@@ -46,14 +60,14 @@ interface ApiResponse<T> {
 }
 
 export async function fetchTickets(): Promise<TicketSummary[]> {
-  const res = await fetch(`${API_BASE}/tickets`);
+  const res = await fetch(`${API_BASE}/tickets`, { headers: getAuthHeaders() });
   const json: ApiResponse<TicketSummary[]> = await res.json();
   if (!json.success || !json.data) throw new Error(json.error || 'Failed to fetch tickets');
   return json.data;
 }
 
 export async function fetchTicketDetail(ticketId: string): Promise<TicketDetail> {
-  const res = await fetch(`${API_BASE}/tickets/${ticketId}`);
+  const res = await fetch(`${API_BASE}/tickets/${ticketId}`, { headers: getAuthHeaders() });
   const json: ApiResponse<TicketDetail> = await res.json();
   if (!json.success || !json.data) throw new Error(json.error || 'Ticket not found');
   return json.data;
@@ -72,7 +86,7 @@ export async function* streamRCAGeneration(
 ): AsyncGenerator<RCAStreamEvent, void, unknown> {
   const res = await fetch(`${API_BASE}/rca/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ ticketId }),
   });
 
