@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_infra:
+        description: 'Deploy infrastructure (Bicep)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
   id-token: write
@@ -12,12 +21,56 @@ permissions:
 env:
   AZURE_FUNCTIONAPP_NAME: func-rca-copilot-prod
   AZURE_WEBAPP_NAME: app-rca-copilot-prod
+  RESOURCE_GROUP: rg-rca-copilot-prod
   NODE_VERSION: '20'
 
 jobs:
+  # CI gate — ensure quality before deploying
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build -w shared
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+
+  # Infrastructure deployment (Bicep) — only on manual trigger with deploy_infra=true
+  deploy-infra:
+    name: Deploy Infrastructure (Bicep)
+    runs-on: ubuntu-latest
+    needs: [ci-gate]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_infra == 'true'
+    outputs:
+      functionAppName: ${{ steps.bicep.outputs.functionAppName }}
+      webAppName: ${{ steps.bicep.outputs.webAppName }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy Bicep
+        id: bicep
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: ${{ env.RESOURCE_GROUP }}
+          template: ./infra/main.bicep
+          parameters: ./infra/parameters.json
+          failOnStdErr: false
+
+  # Build backend
   build-backend:
     name: Build Backend
     runs-on: ubuntu-latest
+    needs: [ci-gate]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,20 +82,21 @@ jobs:
       - run: npm run build -w backend
       - name: Prepare deployment package
         run: |
-          cd backend
-          cp -r dist deploy/
-          cp package.json deploy/
-          cp host.json deploy/
-          cd deploy && npm install --production
-        working-directory: .
+          mkdir -p backend/deploy
+          cp -r backend/dist backend/deploy/
+          cp backend/package.json backend/deploy/
+          cp backend/host.json backend/deploy/
+          cd backend/deploy && npm install --omit=dev
       - uses: actions/upload-artifact@v4
         with:
           name: backend-build
           path: backend/deploy/
 
+  # Build frontend
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
+    needs: [ci-gate]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,28 +115,12 @@ jobs:
           name: frontend-build
           path: frontend/dist/
 
-  deploy-infra:
-    name: Deploy Infrastructure
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - uses: azure/arm-deploy@v2
-        with:
-          resourceGroupName: rg-rca-copilot-prod
-          template: ./infra/main.bicep
-          parameters: ./infra/parameters.json
-          failOnStdErr: false
-
+  # Deploy backend to Azure Functions
   deploy-backend:
     name: Deploy Backend
     runs-on: ubuntu-latest
     needs: [build-backend]
+    environment: production
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -98,10 +136,12 @@ jobs:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: ./deploy
 
+  # Deploy frontend to Azure App Service
   deploy-frontend:
     name: Deploy Frontend
     runs-on: ubuntu-latest
     needs: [build-frontend]
+    environment: production
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -117,11 +157,14 @@ jobs:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: ./dist
 
+  # Post-deploy verification
   health-check:
     name: Post-Deploy Health Check
     runs-on: ubuntu-latest
     needs: [deploy-backend, deploy-frontend]
     steps:
+      - name: Wait for cold start
+        run: sleep 15
       - name: Check backend health
         run: |
           for i in 1 2 3 4 5; do
@@ -130,10 +173,10 @@ jobs:
               echo "✅ Backend health check passed"
               exit 0
             fi
-            echo "Attempt $i: status $STATUS, retrying in 10s..."
-            sleep 10
+            echo "Attempt $i: status $STATUS, retrying in 15s..."
+            sleep 15
           done
-          echo "❌ Backend health check failed"
+          echo "❌ Backend health check failed after 5 attempts"
           exit 1
       - name: Check frontend
         run: |
