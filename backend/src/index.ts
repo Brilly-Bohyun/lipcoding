@@ -3,6 +3,7 @@ import { initTelemetry } from './services/telemetry.js';
 import './functions/tickets.js';
 import './functions/rcaGenerate.js';
 import './functions/rcaStore.js';
+import './functions/rcaReview.js';
 import './functions/exportWord.js';
 import './functions/shareSlack.js';
 
