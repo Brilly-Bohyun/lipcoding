@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
+    "@azure/data-tables": "^13.3.2",
     "@azure/functions": "^4.6.0",
     "@azure/openai": "^2.0.0",
+    "@azure/storage-blob": "^12.32.0",
     "@copilot-extensions/preview-sdk": "^5.0.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@rca-copilot/shared": "*",
