@@ -1,0 +1,64 @@
+{
+  "ticketId": "ticket-004",
+  "subject": "AWS EC2 Instance Unexpected Termination - EBS Volume I/O Error",
+  "status": "resolved",
+  "vendor": "AWS Support",
+  "createdAt": "2024-04-22T03:00:00Z",
+  "updatedAt": "2024-04-23T18:00:00Z",
+  "messages": [
+    {
+      "index": 1,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "aws-support@amazon.com",
+      "date": "2024-04-22T03:00:00Z",
+      "subject": "EC2 instance terminated unexpectedly - possible EBS issue",
+      "bodyText": "Hi AWS Support,\n\nOur production EC2 instance (i-0abc123def456) was unexpectedly terminated at approximately 02:45 KST.\n\nDetails:\n- Instance type: m5.xlarge\n- Region: ap-northeast-2 (Seoul)\n- EBS volumes: gp3 100GB (root), gp3 500GB (data)\n- Auto-recovery was NOT triggered\n- CloudWatch showed disk I/O errors before termination\n\nThe instance state changed directly from 'running' to 'terminated' without going through 'stopping'. This is a production database replica.\n\nPlease investigate the root cause.\n\nRegards,\nBohyun Choi\nContoso MSP",
+      "isVendor": false
+    },
+    {
+      "index": 2,
+      "from": "aws-support@amazon.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-04-22T05:30:00Z",
+      "subject": "RE: EC2 instance terminated unexpectedly [Case ID: 12345678]",
+      "bodyText": "Hello Bohyun,\n\nThank you for contacting AWS Support. I'm looking into the instance termination.\n\nI can see from our internal logs that the instance experienced EBS volume impairment on the root volume (vol-0xyz789) at 02:40 KST. The StateReason shows 'Client.InstanceInitiatedShutdownBehavior'.\n\nQuestions:\n1. What is the instance's shutdown behavior set to? (stop or terminate)\n2. Is there any application or script on the instance that calls 'shutdown' or 'halt'?\n3. Did you receive any AWS Health Dashboard notifications?\n\nI'll continue investigating on our side.\n\nBest regards,\nMike Chen\nAWS Premium Support Engineer",
+      "isVendor": true
+    },
+    {
+      "index": 3,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "aws-support@amazon.com",
+      "date": "2024-04-22T07:00:00Z",
+      "subject": "RE: EC2 instance terminated unexpectedly [Case ID: 12345678]",
+      "bodyText": "Hi Mike,\n\n1. Shutdown behavior: 'terminate' - This was set incorrectly! It should be 'stop'.\n2. The OS (Amazon Linux 2) has a watchdog that calls shutdown if the root filesystem becomes read-only.\n3. Yes - we received a notification about 'Degraded EBS volume performance' for vol-0xyz789 at 02:38 KST.\n\nSo the chain of events seems to be:\n- EBS volume degraded → root filesystem went read-only → OS watchdog triggered shutdown → instance terminated (because shutdown behavior was 'terminate')\n\nIs this correct? And why did the EBS volume degrade?\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 4,
+      "from": "aws-support@amazon.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-04-22T10:00:00Z",
+      "subject": "RE: EC2 instance terminated unexpectedly [Case ID: 12345678]",
+      "bodyText": "Hi Bohyun,\n\nYour analysis is correct. Here's the confirmed sequence:\n\n1. 02:38 KST - EBS volume vol-0xyz789 experienced hardware issue on underlying storage\n2. 02:40 KST - Volume entered 'impaired' status, I/O operations returned errors\n3. 02:42 KST - Linux kernel remounted root filesystem as read-only due to I/O errors\n4. 02:44 KST - systemd watchdog detected unresponsive services, initiated shutdown\n5. 02:45 KST - Instance terminated (shutdown behavior = terminate)\n\nThe EBS degradation was due to a hardware failure on the physical storage host. This is a rare but expected failure mode.\n\nFor the data volume (vol-0xyz789data): I can confirm this volume is healthy and the data is intact. You can attach it to a new instance.\n\nRegards,\nMike Chen",
+      "isVendor": true
+    },
+    {
+      "index": 5,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "aws-support@amazon.com",
+      "date": "2024-04-22T11:00:00Z",
+      "subject": "RE: EC2 instance terminated unexpectedly [Case ID: 12345678]",
+      "bodyText": "Hi Mike,\n\nThank you for the detailed explanation. I've already:\n1. Launched a new instance from our AMI\n2. Attached the data volume to the new instance\n3. Changed shutdown behavior to 'stop' on the new instance\n4. Verified the database is operational\n\nService is restored. Could you recommend preventive measures to avoid this in the future?\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 6,
+      "from": "aws-support@amazon.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-04-23T18:00:00Z",
+      "subject": "RE: EC2 instance terminated unexpectedly [Case ID: 12345678]",
+      "bodyText": "Hi Bohyun,\n\nGlad the service is restored. Preventive recommendations:\n\n1. Always set shutdown behavior to 'stop' for important instances\n2. Enable EC2 Auto Recovery (responds to system status check failures)\n3. Use EBS multi-attach or RAID for critical data volumes\n4. Enable detailed monitoring + CloudWatch alarms for StatusCheckFailed_System\n5. Use placement groups or spread placement for redundancy\n6. Implement automated backup with EBS Snapshots (daily at minimum)\n7. Consider using instance store-backed instances with EBS for data (separate failure domains)\n\nClosing the case.\n\nCase Summary:\n- Issue: EC2 instance unexpected termination\n- Root Cause: EBS hardware failure → read-only filesystem → OS shutdown → instance terminated (wrong shutdown behavior setting)\n- Resolution: New instance launched, data volume attached, shutdown behavior corrected\n- Duration: ~8 hours to full recovery\n\nBest regards,\nMike Chen\nAWS Premium Support Engineer",
+      "isVendor": true
+    }
+  ]
+}
