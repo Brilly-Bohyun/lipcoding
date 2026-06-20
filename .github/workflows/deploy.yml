@@ -149,7 +149,22 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      # Check if Function App exists before deploying
+      - name: Check Function App existence
+        id: check-backend
+        run: |
+          if az functionapp show --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Function App exists, proceeding with deployment"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Function App does not exist. Run workflow with deploy_infra=true first."
+            exit 1
+          fi
+      
       - uses: Azure/functions-action@v1
+        if: steps.check-backend.outputs.exists == 'true'
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: ./deploy
@@ -171,7 +186,22 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      # Check if Web App exists before deploying
+      - name: Check Web App existence
+        id: check-frontend
+        run: |
+          if az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Web App exists, proceeding with deployment"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Web App does not exist. Run workflow with deploy_infra=true first."
+            exit 1
+          fi
+      
       - uses: azure/webapps-deploy@v3
+        if: steps.check-frontend.outputs.exists == 'true'
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: ./dist
