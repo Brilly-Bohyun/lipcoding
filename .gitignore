@@ -9,6 +9,7 @@ node_modules/
 # Build output
 dist/
 .output/
+*.tsbuildinfo
 
 # Azure Functions
 local.settings.json
