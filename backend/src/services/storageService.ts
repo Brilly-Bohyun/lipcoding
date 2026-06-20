@@ -114,7 +114,7 @@ export async function saveRCA(
   if (!(await ensureInit()) || !rcaClient || !containerClient) return null;
 
   // 현재 버전 조회 후 증가
-  let version = 1;
+  let version: number;
   try {
     const existing = await rcaClient.getEntity('rca', ticketId);
     version = ((existing.version as number) ?? 0) + 1;
