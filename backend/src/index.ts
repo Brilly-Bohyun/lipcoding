@@ -1,5 +1,6 @@
 import { app } from '@azure/functions';
 import './functions/tickets.js';
+import './functions/rcaGenerate.js';
 
 app.http('health', {
   methods: ['GET'],

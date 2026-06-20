@@ -12,8 +12,12 @@
     "predev": "npm run build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
     "@azure/functions": "^4.6.0",
-    "@rca-copilot/shared": "*"
+    "@azure/openai": "^2.0.0",
+    "@copilot-extensions/preview-sdk": "^5.0.1",
+    "@rca-copilot/shared": "*",
+    "openai": "^6.44.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
