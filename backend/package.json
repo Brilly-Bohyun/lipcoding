@@ -2,12 +2,14 @@
   "name": "@rca-copilot/backend",
   "version": "0.1.0",
   "private": true,
+  "main": "dist/src/index.js",
   "scripts": {
     "dev": "func start",
     "build": "tsc",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "predev": "npm run build"
   },
   "dependencies": {
     "@azure/functions": "^4.6.0",
