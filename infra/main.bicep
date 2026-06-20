@@ -38,7 +38,8 @@ param githubModelsToken string = ''
 var suffix = '${baseName}-${environment}'
 var appInsightsName = 'appi-${suffix}'
 var keyVaultName = 'kv-${replace(suffix, '-', '')}'
-var storageName = 'st${replace(replace(suffix, '-', ''), '_', '')}'
+// Storage account name: 3-24 chars, lowercase alphanumeric only
+var storageName = toLower('st${replace(replace(baseName, '-', ''), '_', '')}${environment}')
 var functionAppName = 'func-${suffix}'
 var appServicePlanName = 'asp-${suffix}'
 var frontendAppName = 'app-${suffix}'
@@ -78,9 +79,10 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   properties: {
     sku: { family: 'A', name: 'standard' }
     tenantId: subscription().tenantId
-    enableRbacAuthorization: true
+    enableRbacAuthorization: false  // Use Access Policies instead of RBAC
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
+    accessPolicies: []  // Will be added after Function App is created
   }
 }
 
@@ -198,13 +200,22 @@ resource frontendApp 'Microsoft.Web/sites@2023-12-01' = {
 // ============================================================
 // Key Vault Access Policy (Function App Managed Identity)
 // ============================================================
-resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, functionApp.id, 'Key Vault Secrets User')
-  scope: keyVault
+resource kvAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2023-07-01' = {
+  parent: keyVault
+  name: 'add'
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
-    principalId: functionApp.identity.principalId
-    principalType: 'ServicePrincipal'
+    accessPolicies: [
+      {
+        tenantId: subscription().tenantId
+        objectId: functionApp.identity.principalId
+        permissions: {
+          secrets: [
+            'get'
+            'list'
+          ]
+        }
+      }
+    ]
   }
 }
 
