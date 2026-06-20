@@ -120,3 +120,31 @@ export async function* streamRCAGeneration(
     }
   }
 }
+
+export async function exportToWord(rca: RCADocument, ticketSubject: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/rca/export/word`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ rca, ticketSubject }),
+  });
+
+  if (!res.ok) {
+    const errorJson = await res.json().catch(() => ({ error: 'Export failed' }));
+    throw new Error((errorJson as { error?: string }).error || 'Word 내보내기 실패');
+  }
+
+  return res.blob();
+}
+
+export async function shareToSlack(rca: RCADocument, ticketSubject: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/rca/share/slack`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ rca, ticketSubject }),
+  });
+
+  const json: ApiResponse<{ message: string }> = await res.json();
+  if (!json.success) {
+    throw new Error(json.error || 'Slack 공유 실패');
+  }
+}

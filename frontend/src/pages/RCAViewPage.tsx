@@ -11,9 +11,20 @@ import {
   makeStyles,
   tokens,
   Badge,
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
 } from '@fluentui/react-components';
-import { Edit24Regular, Checkmark24Regular } from '@fluentui/react-icons';
-import { streamRCAGeneration, RCADocument } from '../services/api.js';
+import {
+  Edit24Regular,
+  Checkmark24Regular,
+  DocumentArrowDown24Regular,
+  Share24Regular,
+} from '@fluentui/react-icons';
+import { streamRCAGeneration, RCADocument, exportToWord, shareToSlack } from '../services/api.js';
 
 const useStyles = makeStyles({
   container: {
@@ -72,6 +83,9 @@ export function RCAViewPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [slackDialogOpen, setSlackDialogOpen] = useState(false);
+  const [slackStatus, setSlackStatus] = useState<string | null>(null);
 
   const handleGenerate = useCallback(async () => {
     if (!ticketId) return;
@@ -109,6 +123,35 @@ export function RCAViewPage(): JSX.Element {
     setEditingSection(null);
   };
 
+  const handleExportWord = useCallback(async () => {
+    if (!rca) return;
+    setIsExporting(true);
+    try {
+      const blob = await exportToWord(rca, `Ticket: ${ticketId}`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `RCA_${ticketId}_${Date.now()}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Word 내보내기 실패');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [rca, ticketId]);
+
+  const handleShareSlack = useCallback(async () => {
+    if (!rca) return;
+    setSlackStatus(null);
+    try {
+      await shareToSlack(rca, `Ticket: ${ticketId}`);
+      setSlackStatus('✅ Slack 전송 완료!');
+    } catch (e) {
+      setSlackStatus(`❌ ${e instanceof Error ? e.message : 'Slack 전송 실패'}`);
+    }
+  }, [rca, ticketId]);
+
   return (
     <div className={styles.container}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -136,6 +179,25 @@ export function RCAViewPage(): JSX.Element {
 
       {rca && (
         <>
+          {/* Export & Share buttons */}
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <Button
+              icon={<DocumentArrowDown24Regular />}
+              appearance="primary"
+              onClick={handleExportWord}
+              disabled={isExporting}
+            >
+              {isExporting ? 'Export 중...' : 'Word 내보내기'}
+            </Button>
+            <Button
+              icon={<Share24Regular />}
+              appearance="secondary"
+              onClick={() => setSlackDialogOpen(true)}
+            >
+              Slack 공유
+            </Button>
+          </div>
+
           {SECTIONS.map(({ key, label }) => (
             <Card key={key} className={styles.sectionCard}>
               <div className={styles.sectionHeader}>
@@ -206,6 +268,32 @@ export function RCAViewPage(): JSX.Element {
           </Card>
         </>
       )}
+
+      {/* Slack confirmation dialog */}
+      <Dialog open={slackDialogOpen} onOpenChange={(_e, data) => setSlackDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogTitle>Slack 공유 확인</DialogTitle>
+          <DialogBody>
+            <DialogContent>
+              {slackStatus ? (
+                <Text>{slackStatus}</Text>
+              ) : (
+                <Text>RCA 요약을 Slack 채널에 공유하시겠습니까?</Text>
+              )}
+            </DialogContent>
+          </DialogBody>
+          <DialogActions>
+            <Button appearance="secondary" onClick={() => { setSlackDialogOpen(false); setSlackStatus(null); }}>
+              닫기
+            </Button>
+            {!slackStatus && (
+              <Button appearance="primary" onClick={handleShareSlack}>
+                전송
+              </Button>
+            )}
+          </DialogActions>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 }
