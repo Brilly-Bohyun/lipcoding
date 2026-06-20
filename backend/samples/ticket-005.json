@@ -1,0 +1,64 @@
+{
+  "ticketId": "ticket-005",
+  "subject": "Azure CDN Cache Purge Delay - Stale Content Served for Hours",
+  "status": "resolved",
+  "vendor": "Microsoft Azure Support",
+  "createdAt": "2024-05-08T11:00:00Z",
+  "updatedAt": "2024-05-09T16:00:00Z",
+  "messages": [
+    {
+      "index": 1,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-05-08T11:00:00Z",
+      "subject": "CDN purge not propagating - users seeing old content [Case #2405080008]",
+      "bodyText": "Hi Azure Support,\n\nWe performed a CDN purge at 09:00 KST today for our Azure CDN (Microsoft Standard) profile, but users are still seeing stale content 2 hours later.\n\nDetails:\n- CDN Profile: cdn-contoso-prod (Microsoft Standard)\n- Endpoint: cdn-contoso-prod.azureedge.net\n- Purge path: /static/* and /api/config.json\n- Purge initiated: 09:00 KST\n- Current time: 11:00 KST - still serving old content\n\nWe updated our web application's static assets and configuration, but CDN keeps serving the cached version. We've verified the origin is returning correct new content.\n\nThis is blocking our release. Please assist.\n\nRegards,\nBohyun Choi",
+      "isVendor": false
+    },
+    {
+      "index": 2,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-05-08T12:30:00Z",
+      "subject": "RE: CDN purge not propagating [Case #2405080008]",
+      "bodyText": "Hello Bohyun,\n\nI'm investigating the purge delay. A few questions:\n\n1. How did you initiate the purge? (Portal, CLI, REST API)\n2. Can you check the purge status in the Portal under CDN > Endpoint > Purge history?\n3. Are you using any caching rules or query string caching?\n4. What Cache-Control headers does your origin return?\n\nNote: Azure CDN Microsoft Standard typically propagates purge within 10 minutes globally. A 2-hour delay is abnormal.\n\nAlso, try checking from different regions using a tool like check-host.net to see if the issue is region-specific.\n\nRegards,\nLisa Wang\nAzure CDN Support Engineer",
+      "isVendor": true
+    },
+    {
+      "index": 3,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-05-08T13:30:00Z",
+      "subject": "RE: CDN purge not propagating [Case #2405080008]",
+      "bodyText": "Hi Lisa,\n\n1. Purge was initiated via Azure CLI: az cdn endpoint purge\n2. Purge history shows status: 'In Progress' for over 4 hours now\n3. Caching rules: We have a rule 'Cache every URL' with duration 7 days\n4. Origin Cache-Control: 'public, max-age=604800'\n\n5. Testing from different regions:\n   - Korea: old content\n   - US East: old content\n   - Europe: old content\n   All regions showing stale content.\n\nThe purge seems stuck at 'In Progress'. Is there a known issue?\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 4,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-05-08T15:00:00Z",
+      "subject": "RE: CDN purge not propagating [Case #2405080008]",
+      "bodyText": "Hi Bohyun,\n\nI found the issue. When you purge '/static/*', the wildcard purge on Microsoft Standard tier has a known limitation:\n\n1. Wildcard purge processes sequentially across all edge nodes\n2. If you have a large number of cached assets (>10,000 files), it can take several hours\n3. The purge with '/static/*' is trying to invalidate every cached path that matches\n\nThe immediate workaround:\n- Use versioned file names (e.g., /static/app.v2.js) instead of purging\n- Or purge specific files instead of wildcard patterns\n\nI've also escalated your current purge to expedite it on our backend. It should complete within the next 30 minutes.\n\nFor /api/config.json specifically - this single file purge should have completed quickly. Let me check why it's also stuck.\n\nUpdate: I see the issue - your caching rule 'Cache every URL' with 7-day duration is overriding the purge for /api/config.json. The rule needs to be updated to exclude API paths.\n\nRegards,\nLisa Wang",
+      "isVendor": true
+    },
+    {
+      "index": 5,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-05-08T16:00:00Z",
+      "subject": "RE: CDN purge not propagating [Case #2405080008]",
+      "bodyText": "Hi Lisa,\n\nThank you for the explanation. I've done the following:\n\n1. Updated caching rules to exclude /api/* paths (set to 'No cache' for API routes)\n2. For static assets, we'll implement file versioning in our build pipeline\n3. Purge for /api/config.json now completed successfully after removing the caching rule conflict\n\nThe escalated wildcard purge also completed - users are now seeing new static content.\n\nOne concern: Why did the caching rule override the explicit purge? Shouldn't purge always work regardless of caching rules?\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 6,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-05-09T10:00:00Z",
+      "subject": "RE: CDN purge not propagating [Case #2405080008]",
+      "bodyText": "Hi Bohyun,\n\nGood question about purge vs caching rules:\n\nThe purge DID invalidate the content at the edge. However, when the next request came in:\n1. Edge node found no cached copy (purge worked)\n2. Fetched from origin - got new content\n3. BUT the caching rule 'Cache every URL' with 7-day duration re-cached it with the SAME cache key\n4. Some edge nodes had already re-cached before your origin update completed\n\nThe timing issue: If your origin update and purge didn't happen atomically, there's a race condition where some edges re-cache old content during the propagation window.\n\nBest practice:\n1. Update origin first, wait for propagation (1-2 minutes)\n2. Then purge CDN\n3. Use versioned URLs to avoid purge altogether\n4. For API/config: use short TTL or bypass cache\n\nClosing the case.\n\nCase Summary:\n- Issue: CDN purge stuck 'In Progress', stale content served for 6+ hours\n- Root Cause: Wildcard purge slow on large asset count + caching rule conflict re-caching old content\n- Resolution: Fixed caching rules for API paths, escalated purge, implementing file versioning\n- Duration: ~7 hours\n\nRegards,\nLisa Wang\nAzure CDN Support Engineer",
+      "isVendor": true
+    }
+  ]
+}

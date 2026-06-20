@@ -1,0 +1,82 @@
+{
+  "ticketId": "ticket-002",
+  "subject": "Azure SQL Database Performance Degradation - DTU Exhaustion",
+  "status": "resolved",
+  "vendor": "Microsoft Azure Support",
+  "createdAt": "2024-02-05T14:00:00Z",
+  "updatedAt": "2024-02-07T11:00:00Z",
+  "messages": [
+    {
+      "index": 1,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-02-05T14:00:00Z",
+      "subject": "Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hi Azure Support,\n\nOur production Azure SQL Database (Standard S2 tier) has been experiencing severe performance degradation since 13:00 KST today.\n\nSymptoms:\n- Query execution times increased from ~200ms to 15-30 seconds\n- Application returning HTTP 500 errors due to command timeout\n- DTU usage showing 100% consistently\n\nDatabase: sqldb-prod-orders\nServer: sql-contoso-prod.database.windows.net\nTier: Standard S2 (50 DTU)\n\nNo schema changes or deployments were made today. Please investigate.\n\nRegards,\nBohyun Choi\nContoso MSP",
+      "isVendor": false
+    },
+    {
+      "index": 2,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-02-05T15:30:00Z",
+      "subject": "RE: Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hello Bohyun,\n\nThank you for reaching out. I can see the DTU exhaustion on our monitoring dashboard.\n\nCould you please check the following:\n1. Run this query to find top resource-consuming queries:\n   SELECT TOP 10 * FROM sys.dm_exec_query_stats ORDER BY total_worker_time DESC\n2. Check if there are any long-running transactions:\n   SELECT * FROM sys.dm_exec_requests WHERE status = 'running' AND total_elapsed_time > 10000\n3. Check for blocking:\n   SELECT * FROM sys.dm_exec_requests WHERE blocking_session_id > 0\n\nAlso, have you checked if there's a missing index recommendation in the Azure Portal under Performance recommendations?\n\nRegards,\nSarah Kim\nAzure SQL Support Engineer",
+      "isVendor": true
+    },
+    {
+      "index": 3,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-02-05T16:45:00Z",
+      "subject": "RE: Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hi Sarah,\n\nHere are the results:\n\n1. Top consuming query is a SELECT with multiple JOINs on the Orders table - it's doing a full table scan. This query normally uses an index but seems to not be using it now.\n\n2. Found 3 long-running queries all executing the same problematic query pattern.\n\n3. No blocking detected.\n\n4. Azure Portal shows a missing index recommendation that appeared today:\n   CREATE INDEX IX_Orders_CustomerID_OrderDate ON Orders(CustomerID, OrderDate) INCLUDE (TotalAmount)\n\nInteresting - this index existed before. Could it have been dropped?\n\nChecking... YES! The index was dropped. Our nightly maintenance job rebuilt indexes last night but seems to have dropped this one instead of rebuilding it.\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 4,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-02-05T17:30:00Z",
+      "subject": "RE: Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hi Bohyun,\n\nThat explains the issue. Without the index, the query falls back to a table scan which consumes significantly more DTUs.\n\nImmediate action:\n1. Recreate the missing index:\n   CREATE INDEX IX_Orders_CustomerID_OrderDate ON Orders(CustomerID, OrderDate) INCLUDE (TotalAmount) WITH (ONLINE = ON)\n2. Use ONLINE = ON to avoid blocking during index creation\n\nAfter the index is created, DTU usage should normalize within minutes.\n\nFor the root cause of the dropped index - I recommend reviewing your nightly maintenance job logic. Azure SQL Database handles index maintenance differently from on-premises SQL Server.\n\nNote: On S2 tier, index operations may take longer due to limited DTU. Consider temporarily scaling up to S3 for faster index rebuild.\n\nRegards,\nSarah Kim",
+      "isVendor": true
+    },
+    {
+      "index": 5,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-02-05T18:00:00Z",
+      "subject": "RE: Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hi Sarah,\n\nI recreated the index with ONLINE = ON. It took about 8 minutes on S2 tier.\n\nResults:\n- DTU usage dropped from 100% to 25% immediately after index creation\n- Query execution time back to normal (~200ms)\n- Application errors resolved\n\nI'll review the maintenance job next. Thank you!\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 6,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-02-06T09:00:00Z",
+      "subject": "RE: Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hi Bohyun,\n\nGlad to hear it's resolved. Some recommendations for preventing this in the future:\n\n1. Don't use custom index maintenance jobs on Azure SQL DB - Azure handles physical fragmentation automatically\n2. If you must rebuild indexes, use ALTER INDEX REBUILD instead of DROP/CREATE\n3. Set up DTU alerts at 80% threshold\n4. Consider Automatic Tuning feature (Azure Portal > your DB > Automatic tuning)\n5. Enable Query Performance Insight for monitoring\n\nShall I close the case?\n\nRegards,\nSarah Kim\nAzure SQL Support Engineer",
+      "isVendor": true
+    },
+    {
+      "index": 7,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-02-06T10:00:00Z",
+      "subject": "RE: Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hi Sarah,\n\nThank you for the recommendations. I've disabled the custom maintenance job and enabled Automatic Tuning.\n\nOne question - should we consider upgrading from S2 to a higher tier? We've been at 60-70% DTU during peak hours even before this incident.\n\nPlease close the case. Thanks for the excellent support!\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 8,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-02-07T11:00:00Z",
+      "subject": "RE: Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
+      "bodyText": "Hi Bohyun,\n\nRegarding the upgrade question: If you're consistently at 60-70% DTU during peak, I'd recommend either:\n- Scale up to S3 (100 DTU) for headroom\n- Or consider moving to vCore model (General Purpose 2 vCores) which gives more flexibility\n\nYou can also use elastic pools if you have multiple databases.\n\nClosing the case now.\n\nCase Summary:\n- Issue: Query timeouts due to 100% DTU exhaustion\n- Root Cause: Critical index accidentally dropped by maintenance job, causing full table scans\n- Resolution: Recreated the missing index\n- Duration: ~5 hours\n\nRegards,\nSarah Kim",
+      "isVendor": true
+    }
+  ]
+}

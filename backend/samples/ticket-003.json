@@ -1,0 +1,64 @@
+{
+  "ticketId": "ticket-003",
+  "subject": "Azure App Service 502 Bad Gateway - Backend Health Check Failure",
+  "status": "resolved",
+  "vendor": "Microsoft Azure Support",
+  "createdAt": "2024-03-10T07:00:00Z",
+  "updatedAt": "2024-03-11T14:00:00Z",
+  "messages": [
+    {
+      "index": 1,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-03-10T07:00:00Z",
+      "subject": "Production App Service returning 502 errors intermittently [Case #2403100005]",
+      "bodyText": "Hi Azure Support,\n\nOur production App Service (app-contoso-api-prod) started returning 502 Bad Gateway errors intermittently since 06:30 KST.\n\nDetails:\n- App Service Plan: P1v3 (Premium v3)\n- Runtime: .NET 8\n- Region: Korea Central\n- Error rate: ~30% of requests getting 502\n- Health check endpoint /health returns timeout\n\nThe application was working fine until this morning. No deployments in the last 48 hours.\n\nPlease investigate urgently.\n\nRegards,\nBohyun Choi",
+      "isVendor": false
+    },
+    {
+      "index": 2,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-03-10T08:30:00Z",
+      "subject": "RE: Production App Service returning 502 errors [Case #2403100005]",
+      "bodyText": "Hello Bohyun,\n\nI can see the 502 errors in our platform logs. Let me check a few things:\n\n1. Do you have Health Check feature enabled in the App Service configuration?\n2. What's the response time of your /health endpoint normally?\n3. Are you seeing any exceptions in Application Insights?\n4. Can you check Diagnose and Solve Problems > Web App Down?\n\nInitial observation: I can see that your instances are being restarted frequently. This suggests the health check is failing and the platform is recycling unhealthy instances.\n\nRegards,\nDavid Lee\nAzure App Service Support Engineer",
+      "isVendor": true
+    },
+    {
+      "index": 3,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-03-10T09:45:00Z",
+      "subject": "RE: Production App Service returning 502 errors [Case #2403100005]",
+      "bodyText": "Hi David,\n\n1. Yes, Health Check is enabled. Path: /health, threshold: 3 failures\n2. Normally /health responds in 100-200ms\n3. Application Insights shows: System.Data.SqlClient.SqlException - Connection pool exhausted. Max pool size (100) reached.\n4. Diagnose and Solve shows 'Instance Health Degraded'\n\nSo it seems like the database connection pool is being exhausted. But we haven't changed anything...\n\nWait - I just checked our logs more carefully. We deployed a new background job service yesterday that runs on a timer. It might be holding connections without releasing them.\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 4,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-03-10T11:00:00Z",
+      "subject": "RE: Production App Service returning 502 errors [Case #2403100005]",
+      "bodyText": "Hi Bohyun,\n\nThat makes sense. Here's the chain of events:\n\n1. Background job leaks DB connections (doesn't dispose properly)\n2. Connection pool reaches max (100)\n3. /health endpoint tries to check DB connectivity → times out\n4. App Service Health Check feature detects failure (3 consecutive)\n5. Platform marks instance as unhealthy and restarts it\n6. During restart → 502 for in-flight requests\n7. New instance starts, pool is fresh, works briefly, then same cycle\n\nImmediate fix:\n- Disable the background job, OR\n- Increase connection pool max (temporary workaround)\n\nProper fix:\n- Ensure all DB connections are disposed with 'using' statements\n- Add connection pool monitoring\n\nRegards,\nDavid Lee",
+      "isVendor": true
+    },
+    {
+      "index": 5,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-03-10T12:30:00Z",
+      "subject": "RE: Production App Service returning 502 errors [Case #2403100005]",
+      "bodyText": "Hi David,\n\nI disabled the background job and the 502 errors stopped immediately. The instances are stable now.\n\nI found the issue in the code - the background job was opening connections in a loop without using 'using' statements or calling Dispose(). The developer will fix this.\n\nQuestion: Is there a way to set up alerting specifically for connection pool exhaustion before it impacts health checks?\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 6,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-03-11T09:00:00Z",
+      "subject": "RE: Production App Service returning 502 errors [Case #2403100005]",
+      "bodyText": "Hi Bohyun,\n\nGlad it's resolved. For connection pool monitoring:\n\n1. Add custom metric tracking: Track 'active connections' count via Application Insights\n2. Set alert when active connections > 80% of pool max\n3. Also consider:\n   - Reducing connection pool max per instance if you have multiple instances\n   - Using connection resilience (retry logic with EnableRetryOnFailure)\n   - Setting connection lifetime to recycle stale connections\n\nAlso, I recommend changing Health Check threshold from 3 to 5 to allow more time for transient issues.\n\nClosing the case.\n\nCase Summary:\n- Issue: Intermittent 502 errors (~30% of requests)\n- Root Cause: Background job leaking DB connections → pool exhaustion → health check timeout → instance restart cycle\n- Resolution: Disabled faulty background job, code fix pending\n- Duration: ~6 hours\n\nRegards,\nDavid Lee",
+      "isVendor": true
+    }
+  ]
+}

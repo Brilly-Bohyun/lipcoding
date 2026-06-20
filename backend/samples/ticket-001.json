@@ -1,0 +1,82 @@
+{
+  "ticketId": "ticket-001",
+  "subject": "Azure VM Network Connectivity Issue - NSG Rule Conflict",
+  "status": "resolved",
+  "vendor": "Microsoft Azure Support",
+  "createdAt": "2024-01-15T09:00:00Z",
+  "updatedAt": "2024-01-18T16:30:00Z",
+  "messages": [
+    {
+      "index": 1,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-01-15T09:00:00Z",
+      "subject": "Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hi Azure Support,\n\nWe are experiencing a critical network connectivity issue with our production VM (vm-prod-web-01) in the Korea Central region.\n\nSince approximately 08:30 KST today, the VM cannot reach our backend API servers on port 443. All outbound connections are timing out.\n\nAffected resources:\n- VM: vm-prod-web-01 (10.0.1.4)\n- Subnet: snet-frontend\n- NSG: nsg-frontend-prod\n\nThis is impacting our production workload. Please advise urgently.\n\nBest regards,\nBohyun Choi\nContoso MSP",
+      "isVendor": false
+    },
+    {
+      "index": 2,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-01-15T10:15:00Z",
+      "subject": "RE: Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hello Bohyun,\n\nThank you for contacting Microsoft Azure Support. I understand the urgency of your situation.\n\nTo investigate further, could you please provide:\n1. The effective security rules for the NSG (az network nsg show)\n2. Network Watcher NSG flow logs if enabled\n3. Any recent changes to the NSG rules or route tables\n4. Output of: az network nic show-effective-route-table\n\nIn the meantime, I recommend checking if any NSG rules were recently modified that might be blocking port 443 outbound.\n\nRegards,\nJohn Park\nAzure Network Support Engineer",
+      "isVendor": true
+    },
+    {
+      "index": 3,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-01-15T11:30:00Z",
+      "subject": "RE: Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hi John,\n\nThank you for the quick response. Here's what I found:\n\n1. NSG effective rules show a Deny rule (priority 100) blocking all outbound traffic on port 443. This rule was not there before.\n\n2. We checked the activity log and found that a new deny rule 'DenyAllOutbound443' was added at 2024-01-15 08:25 KST by user admin@contosomsp.com.\n\n3. No changes to route tables.\n\n4. Effective routes look normal - default route to internet is present.\n\nIt seems like someone added a deny rule by mistake. However, we also have an Allow rule at priority 200 for outbound 443. Shouldn't the Allow rule work?\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 4,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-01-15T13:00:00Z",
+      "subject": "RE: Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hi Bohyun,\n\nGreat finding. The issue is clear now:\n\nIn Azure NSG, rules are evaluated in priority order (lowest number = highest priority). Your Deny rule at priority 100 is evaluated BEFORE the Allow rule at priority 200. Since the Deny rule matches first, the traffic is blocked.\n\nThis is the expected behavior per Azure NSG rule evaluation logic:\n- Rules are processed in order of priority (100, 200, 300...)\n- Once a rule matches, evaluation stops\n- Lower priority number = higher precedence\n\nRecommended actions:\n1. Remove the DenyAllOutbound443 rule (priority 100), OR\n2. Change its priority to a number higher than 200 (e.g., 300) if you need it for other traffic\n\nWould you like me to guide you through the remediation?\n\nRegards,\nJohn Park",
+      "isVendor": true
+    },
+    {
+      "index": 5,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-01-15T14:00:00Z",
+      "subject": "RE: Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hi John,\n\nThat makes sense. I've removed the DenyAllOutbound443 rule from the NSG.\n\nConnectivity is now restored - the VM can reach backend services on port 443 again. I confirmed by running:\n- curl https://api-backend.contosomsp.com/health → 200 OK\n- Test-NetConnection -ComputerName api-backend.contosomsp.com -Port 443 → Success\n\nThe issue was caused by an accidental rule addition during a security hardening exercise this morning.\n\nThank you for the quick diagnosis!\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 6,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-01-15T15:00:00Z",
+      "subject": "RE: Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hi Bohyun,\n\nGlad to hear the issue is resolved. For future prevention, I recommend:\n\n1. Use Azure Policy to audit/deny NSG rules that block critical ports\n2. Implement change management process for NSG modifications\n3. Enable NSG flow logs for monitoring\n4. Consider using Application Security Groups (ASGs) for more granular control\n\nIs there anything else I can help with? If not, I'll proceed to close this case.\n\nRegards,\nJohn Park\nAzure Network Support Engineer",
+      "isVendor": true
+    },
+    {
+      "index": 7,
+      "from": "bohyun.choi@contosomsp.com",
+      "to": "azuresupport@microsoft.com",
+      "date": "2024-01-15T15:30:00Z",
+      "subject": "RE: Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hi John,\n\nThank you for the recommendations. We'll implement those preventive measures.\n\nOne quick question - is there a way to set up alerts when NSG rules are modified? We'd like to be notified immediately if someone changes the rules.\n\nOtherwise, please go ahead and close the case.\n\nRegards,\nBohyun",
+      "isVendor": false
+    },
+    {
+      "index": 8,
+      "from": "azuresupport@microsoft.com",
+      "to": "bohyun.choi@contosomsp.com",
+      "date": "2024-01-16T09:00:00Z",
+      "subject": "RE: Urgent: VM unable to reach backend services [Case #2401150001]",
+      "bodyText": "Hi Bohyun,\n\nYes, you can set up Activity Log alerts for NSG changes:\n\n1. Go to Azure Monitor > Alerts > Create alert rule\n2. Scope: your NSG resource\n3. Condition: Activity Log - Administrative - Write Network Security Groups\n4. Action: Email/SMS notification\n\nAlternatively, use Azure Policy with 'deployIfNotExists' effect to automatically remediate non-compliant NSG changes.\n\nI'm closing this case now. Feel free to reopen if needed.\n\nCase Summary:\n- Issue: VM outbound connectivity blocked on port 443\n- Root Cause: NSG deny rule (priority 100) blocking traffic before allow rule (priority 200)\n- Resolution: Removed the conflicting deny rule\n- Duration: ~6 hours\n\nRegards,\nJohn Park\nAzure Network Support Engineer",
+      "isVendor": true
+    }
+  ]
+}
