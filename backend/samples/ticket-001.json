@@ -11,7 +11,7 @@
       "from": "bohyun.choi@contosomsp.com",
       "to": "azuresupport@microsoft.com",
       "date": "2024-01-15T09:00:00Z",
-      "subject": "Urgent: VM unable to reach backend services",
+      "subject": "Urgent: VM unable to reach backend services [Case #2401150001]",
       "bodyText": "Hi Azure Support,\n\nWe are experiencing a critical network connectivity issue with our production VM (vm-prod-web-01) in the Korea Central region.\n\nSince approximately 08:30 KST today, the VM cannot reach our backend API servers on port 443. All outbound connections are timing out.\n\nAffected resources:\n- VM: vm-prod-web-01 (10.0.1.4)\n- Subnet: snet-frontend\n- NSG: nsg-frontend-prod\n\nThis is impacting our production workload. Please advise urgently.\n\nBest regards,\nBohyun Choi\nContoso MSP",
       "isVendor": false
     },

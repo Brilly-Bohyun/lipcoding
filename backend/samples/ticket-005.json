@@ -11,7 +11,7 @@
       "from": "bohyun.choi@contosomsp.com",
       "to": "azuresupport@microsoft.com",
       "date": "2024-05-08T11:00:00Z",
-      "subject": "CDN purge not propagating - users seeing old content",
+      "subject": "CDN purge not propagating - users seeing old content [Case #2405080008]",
       "bodyText": "Hi Azure Support,\n\nWe performed a CDN purge at 09:00 KST today for our Azure CDN (Microsoft Standard) profile, but users are still seeing stale content 2 hours later.\n\nDetails:\n- CDN Profile: cdn-contoso-prod (Microsoft Standard)\n- Endpoint: cdn-contoso-prod.azureedge.net\n- Purge path: /static/* and /api/config.json\n- Purge initiated: 09:00 KST\n- Current time: 11:00 KST - still serving old content\n\nWe updated our web application's static assets and configuration, but CDN keeps serving the cached version. We've verified the origin is returning correct new content.\n\nThis is blocking our release. Please assist.\n\nRegards,\nBohyun Choi",
       "isVendor": false
     },

@@ -11,7 +11,7 @@
       "from": "bohyun.choi@contosomsp.com",
       "to": "azuresupport@microsoft.com",
       "date": "2024-03-10T07:00:00Z",
-      "subject": "Production App Service returning 502 errors intermittently",
+      "subject": "Production App Service returning 502 errors intermittently [Case #2403100005]",
       "bodyText": "Hi Azure Support,\n\nOur production App Service (app-contoso-api-prod) started returning 502 Bad Gateway errors intermittently since 06:30 KST.\n\nDetails:\n- App Service Plan: P1v3 (Premium v3)\n- Runtime: .NET 8\n- Region: Korea Central\n- Error rate: ~30% of requests getting 502\n- Health check endpoint /health returns timeout\n\nThe application was working fine until this morning. No deployments in the last 48 hours.\n\nPlease investigate urgently.\n\nRegards,\nBohyun Choi",
       "isVendor": false
     },

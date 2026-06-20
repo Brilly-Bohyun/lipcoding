@@ -11,7 +11,7 @@
       "from": "bohyun.choi@contosomsp.com",
       "to": "aws-support@amazon.com",
       "date": "2024-04-22T03:00:00Z",
-      "subject": "EC2 instance terminated unexpectedly - possible EBS issue",
+      "subject": "EC2 instance terminated unexpectedly - possible EBS issue [Case ID: 12345678]",
       "bodyText": "Hi AWS Support,\n\nOur production EC2 instance (i-0abc123def456) was unexpectedly terminated at approximately 02:45 KST.\n\nDetails:\n- Instance type: m5.xlarge\n- Region: ap-northeast-2 (Seoul)\n- EBS volumes: gp3 100GB (root), gp3 500GB (data)\n- Auto-recovery was NOT triggered\n- CloudWatch showed disk I/O errors before termination\n\nThe instance state changed directly from 'running' to 'terminated' without going through 'stopping'. This is a production database replica.\n\nPlease investigate the root cause.\n\nRegards,\nBohyun Choi\nContoso MSP",
       "isVendor": false
     },

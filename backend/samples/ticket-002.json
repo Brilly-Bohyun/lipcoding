@@ -11,7 +11,7 @@
       "from": "bohyun.choi@contosomsp.com",
       "to": "azuresupport@microsoft.com",
       "date": "2024-02-05T14:00:00Z",
-      "subject": "Azure SQL DB - Severe query timeouts in production",
+      "subject": "Azure SQL DB - Severe query timeouts in production [Case #2402050012]",
       "bodyText": "Hi Azure Support,\n\nOur production Azure SQL Database (Standard S2 tier) has been experiencing severe performance degradation since 13:00 KST today.\n\nSymptoms:\n- Query execution times increased from ~200ms to 15-30 seconds\n- Application returning HTTP 500 errors due to command timeout\n- DTU usage showing 100% consistently\n\nDatabase: sqldb-prod-orders\nServer: sql-contoso-prod.database.windows.net\nTier: Standard S2 (50 DTU)\n\nNo schema changes or deployments were made today. Please investigate.\n\nRegards,\nBohyun Choi\nContoso MSP",
       "isVendor": false
     },
