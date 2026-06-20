@@ -49,26 +49,38 @@ export async function* reviewRCAStream(
     { role: 'user', content: `## 현재 RCA 보고서\n${JSON.stringify(rca)}\n\n## 질문\n${userQuestion}` },
   ];
 
-  // 1) 툴 호출 여부 판단
-  const { toolCalls } = await promptWithTools(context, TOOLS);
-
-  // 2) 툴이 호출되면 메일을 조회해 컨텍스트에 주입
-  if (toolCalls.length > 0) {
-    for (const call of toolCalls) {
-      if (call.function.name !== 'get_mail_message') continue;
-      let idx = 0;
-      try {
-        idx = JSON.parse(call.function.arguments).index;
-      } catch {
-        continue;
+  // 1) 툴 호출 여부 판단 (best-effort — 실패해도 답변은 계속)
+  let usedTool = false;
+  try {
+    const { toolCalls } = await promptWithTools(context, TOOLS);
+    if (toolCalls.length > 0) {
+      for (const call of toolCalls) {
+        if (call.function.name !== 'get_mail_message') continue;
+        let idx = 0;
+        try {
+          idx = JSON.parse(call.function.arguments).index;
+        } catch {
+          continue;
+        }
+        const mail = messages.find((m) => m.index === idx);
+        const evidence = mail
+          ? `메일 #${mail.index} (${mail.isVendor ? '벤더' : '고객'}, ${mail.date})\n${mail.bodyText}`
+          : `메일 #${idx}을 찾을 수 없습니다.`;
+        yield { type: 'tool', content: `🔍 근거 조회: 메일 #${idx}` };
+        context.push({ role: 'assistant', content: `(도구 get_mail_message 결과)\n${evidence}` });
+        usedTool = true;
       }
-      const mail = messages.find((m) => m.index === idx);
-      const evidence = mail
-        ? `메일 #${mail.index} (${mail.isVendor ? '벤더' : '고객'}, ${mail.date})\n${mail.bodyText}`
-        : `메일 #${idx}을 찾을 수 없습니다.`;
-      yield { type: 'tool', content: `🔍 근거 조회: 메일 #${idx}` };
-      context.push({ role: 'assistant', content: `(도구 get_mail_message 결과)\n${evidence}` });
     }
+  } catch {
+    // 툴 호출 실패 시 폴백으로 진행
+  }
+
+  // 2) 툴 근거가 없으면 전체 메일을 컨텍스트로 주입해 근거 기반 답변 보장
+  if (!usedTool && messages.length > 0) {
+    const allMail = messages
+      .map((m) => `메일 #${m.index} (${m.isVendor ? '벤더' : '고객'}, ${m.date})\n${m.bodyText}`)
+      .join('\n\n');
+    context.push({ role: 'assistant', content: `(참고 원본 메일)\n${allMail}` });
   }
 
   // 3) 근거를 바탕으로 최종 답변 스트리밍
