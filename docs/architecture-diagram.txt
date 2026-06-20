@@ -1,0 +1,93 @@
+
+╔═══════════════════════════════════════════════════════════════════════════════════╗
+║                  Vendor Support RCA Copilot - Azure Architecture                  ║
+╚═══════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────┐         ┌──────────────────────┐         ┌────────────────────┐
+│    GitHub       │         │  Microsoft Entra ID  │         │  External Services │
+│                 │         │                      │         │                    │
+│  ⚙️  GitHub     │         │    🔐 Azure AD       │         │  📧 MS Graph API   │
+│     Actions     │────────▶│    Authentication    │◀────────│  📧 Outlook Mails  │
+│  (CI/CD)        │         │    (MSAL/OIDC)       │         │                    │
+│                 │         │                      │         │  💬 Slack Webhook  │
+│  🤖 GitHub      │         │                      │         │  💬 Notifications  │
+│     Models      │         │                      │         │                    │
+│  (GPT-4o)       │         │                      │         │                    │
+└─────────────────┘         └──────────────────────┘         └────────────────────┘
+        │                              │
+        │ Deploy                       │ Auth Token
+        ▼                              ▼
+╔═══════════════════════════════════════════════════════════════════════════════════╗
+║                    Azure Cloud - rg-rca-copilot-prod (Korea Central)             ║
+║                                                                                    ║
+║  ┌──────────────────────────────────────────────────────────────────────────┐   ║
+║  │  COMPUTE LAYER                                                            │   ║
+║  │                                                                            │   ║
+║  │   ┌────────────────────┐              ┌─────────────────────┐            │   ║
+║  │   │  🌐 App Service    │              │  ⚡ Functions App   │            │   ║
+║  │   │  app-rca-copilot   │◀────API─────▶│  func-rca-copilot  │            │   ║
+║  │   │  (React SPA)       │              │  (Node.js 20)      │            │   ║
+║  │   │  Frontend          │              │  Backend API       │            │   ║
+║  │   │  24/7 Hosting      │              │  Serverless        │            │   ║
+║  │   └────────────────────┘              └─────────────────────┘            │   ║
+║  │            │                                      │                       │   ║
+║  └────────────┼──────────────────────────────────────┼───────────────────────┘   ║
+║               │                                      │                            ║
+║               │                                      │                            ║
+║  ┌────────────┼──────────────────────────────────────┼───────────────────────┐   ║
+║  │  STORAGE & SECURITY LAYER                        │                        │   ║
+║  │            │                                      │                        │   ║
+║  │   ┌────────▼────────┐   ┌─────────────┐   ┌─────▼───────────────┐        │   ║
+║  │   │  💾 Storage     │   │  🔑 Key     │◀──│  Managed Identity   │        │   ║
+║  │   │  strcacopilot   │   │     Vault   │   │  (Secure Access)    │        │   ║
+║  │   │  Blob, Table    │   │  kv-rca-*   │   └─────────────────────┘        │   ║
+║  │   │  RCA Docs       │   │  Secrets    │                                   │   ║
+║  │   └─────────────────┘   └─────────────┘                                   │   ║
+║  └──────────────────────────────────────────────────────────────────────────┘   ║
+║                                                                                    ║
+║  ┌──────────────────────────────────────────────────────────────────────────┐   ║
+║  │  MONITORING                                                               │   ║
+║  │                                                                            │   ║
+║  │         ┌─────────────────────────────────────────────┐                  │   ║
+║  │         │  📊 Application Insights                    │                  │   ║
+║  │         │  appi-rca-copilot-prod                      │                  │   ║
+║  │         │  Telemetry, Logs, Performance Monitoring    │                  │   ║
+║  │         └─────────────────────────────────────────────┘                  │   ║
+║  └──────────────────────────────────────────────────────────────────────────┘   ║
+╚═══════════════════════════════════════════════════════════════════════════════════╝
+
+                                     ▲
+                                     │
+                                     │ HTTPS
+                          ┌──────────┴──────────┐
+                          │   👤 MSP Engineer   │
+                          │   (End User)        │
+                          └─────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════════
+DATA FLOW:
+═══════════════════════════════════════════════════════════════════════════════════
+
+  1️⃣  User Login         : MSP Engineer → Entra ID (MSAL Auth)
+  2️⃣  Access Token       : Entra ID → App Service (Frontend)
+  3️⃣  API Requests       : Frontend → Functions App (Backend)
+  4️⃣  Backend Processing :
+      ├─ 📧 Fetch Mails  : Functions → MS Graph API (Outlook)
+      ├─ 🤖 AI Generation: Functions → GitHub Models (GPT-4o)
+      ├─ 🔑 Read Secrets : Functions → Key Vault (Managed Identity)
+      ├─ 💾 Store RCA    : Functions → Storage Account (Blob)
+      └─ 📊 Send Logs    : Functions → Application Insights
+  5️⃣  Share Results     : Functions → Slack Webhook
+
+═══════════════════════════════════════════════════════════════════════════════════
+SECURITY:
+═══════════════════════════════════════════════════════════════════════════════════
+
+  ✅ HTTPS Only (TLS 1.2+)
+  ✅ CORS Restricted (localhost:5173, production domain)
+  ✅ Managed Identity (No hardcoded secrets)
+  ✅ Key Vault for Runtime Secrets
+  ✅ Entra ID Authentication (MSAL/OIDC)
+  ✅ CI/CD Secret Scan (gitleaks)
+
+═══════════════════════════════════════════════════════════════════════════════════
